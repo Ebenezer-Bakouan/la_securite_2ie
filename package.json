@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.3",
     "@hookform/resolvers": "^5.0.1",
     "axios": "^1.8.4",
     "lucide-react": "^0.510.0",
