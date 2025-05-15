@@ -1,11 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, User, Key, Clock, Calendar, CheckCircle, XCircle, Filter, Menu, X, Home, Settings, BarChart2 } from 'lucide-react';
+import axios from 'axios';
+import { Search, User, Key, Clock, Calendar, CheckCircle, XCircle, Filter, Menu, X, Home, Settings, BarChart2, Shield, Plus } from 'lucide-react';
 
-// Composant Navbar
+// Configuration d'Axios
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
+  },
+});
+
+// Composant Navbar (inchangé)
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -63,7 +73,6 @@ const Navbar = () => {
           </div>
         </div>
       </div>
-      {/* Menu mobile */}
       {isOpen && (
         <div className="md:hidden bg-gray-700">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
@@ -92,7 +101,7 @@ const Navbar = () => {
   );
 };
 
-// Composant Footer
+// Composant Footer (inchangé)
 const Footer = () => {
   return (
     <footer className="bg-gray-800 text-white py-8 fixed bottom-0 left-0 w-screen z-50">
@@ -150,11 +159,134 @@ const Footer = () => {
   );
 };
 
+// Composant pour le formulaire d'ajout de sous-admin
+const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
+  const [formData, setFormData] = useState({
+    nom: '',
+    prenom: '',
+    statut: 'Étudiant',
+    email: '',
+    password: '',
+  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/users/register', { ...formData, isadmin: true });
+      setSuccess(response.data.message);
+      setError('');
+      onAdd(response.data.user);
+      setFormData({ nom: '', prenom: '', statut: 'Étudiant', email: '', password: '' });
+      setTimeout(onClose, 2000); // Ferme le modal après 2 secondes
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de l\'ajout du sous-admin.');
+      setSuccess('');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Ajouter un sous-admin</h2>
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-800">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Nom</label>
+            <input
+              type="text"
+              value={formData.nom}
+              onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Prénom</label>
+            <input
+              type="text"
+              value={formData.prenom}
+              onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Statut</label>
+            <select
+              value={formData.statut}
+              onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+            >
+          
+              <option value="Professeur">Professeur</option>
+            
+              <option value="Travailleur 2iE"> Travailleur 2iE</option>
+            </select>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          {success && <p className="text-green-500 text-sm mb-4">{success}</p>}
+          <div className="flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-md text-gray-600 bg-gray-200 hover:bg-gray-300"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-md text-white bg-purple-500 hover:bg-purple-600"
+            >
+              Ajouter
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('personnes');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBy, setFilterBy] = useState('tous');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [personnes, setPersonnes] = useState([]);
+  const [badges, setBadges] = useState([]);
+  const [demandes, setDemandes] = useState([]);
+  const [subAdmins, setSubAdmins] = useState([]);
+  const [salles, setSalles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Couleurs thématiques 2iE
   const colors = {
@@ -166,76 +298,173 @@ export default function AdminDashboard() {
     lightBg: '#F7F7F7', // Gris clair pour les fonds
   };
 
-  // Données fictives pour l'exemple
-  const personnesData = [
-    { id: 1, nom: 'Dubois', prenom: 'Marie', statut: 'Étudiant', salle: 'A101', numInscription: '2025001', heureEntree: '08:15' },
-    { id: 2, nom: 'Martin', prenom: 'Thomas', statut: 'Professeur', salle: 'B202', numInscription: '2025002', heureEntree: '09:30' },
-    { id: 3, nom: 'Bernard', prenom: 'Sophie', statut: 'Stagiaire', salle: 'A101', numInscription: '2025003', heureEntree: '08:45' },
-    { id: 4, nom: 'Petit', prenom: 'Lucas', statut: 'Admin 2IE', salle: 'C303', numInscription: '2025004', heureEntree: '10:00' },
-    { id: 5, nom: 'Robert', prenom: 'Emma', statut: 'Étudiant', salle: 'A101', numInscription: '2025005', heureEntree: '08:30' },
-  ];
+  // Récupérer les données depuis les API
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        // Récupérer les salles
+        const sallesResponse = await api.get('/salles');
+        setSalles(sallesResponse.data);
 
-  const badgesData = [
-    { id: 1, nom: 'Dubois', prenom: 'Marie', statut: 'Étudiant', numInscription: '2025001', actif: true },
-    { id: 2, nom: 'Martin', prenom: 'Thomas', statut: 'Professeur', numInscription: '2025002', actif: true },
-    { id: 3, nom: 'Bernard', prenom: 'Sophie', statut: 'Stagiaire', numInscription: '2025003', actif: true },
-    { id: 4, nom: 'Petit', prenom: 'Lucas', statut: 'Admin 2IE', numInscription: '2025004', actif: false },
-    { id: 5, nom: 'Robert', prenom: 'Emma', statut: 'Étudiant', numInscription: '2025005', actif: true },
-  ];
+        // Récupérer les personnes présentes (demandes approuvées)
+        const demandesApprouvees = await api.get('/demande-acces?statut=approuvee');
+        const personnesData = await Promise.all(
+          demandesApprouvees.data.demandes.map(async (demande) => {
+            const user = (await api.get(`/users/${demande.user_id}`)).data;
+            const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
+            return {
+              id: demande.id,
+              nom: user.nom,
+              prenom: user.prenom,
+              statut: user.statut,
+              salle: salle.nom,
+              numInscription: user.email, // Utiliser l'email comme identifiant
+              heureEntree: new Date(demande.created_at).toLocaleTimeString(),
+            };
+          })
+        );
+        setPersonnes(personnesData);
 
-  const demandesData = [
-    { id: 1, nom: 'Dupont', prenom: 'Alexandre', statut: 'Étudiant', numInscription: '2025006', salle: 'B202' },
-    { id: 2, nom: 'Leroy', prenom: 'Chloé', statut: 'Stagiaire', numInscription: '2025007', salle: 'C303' },
-    { id: 3, nom: 'Moreau', prenom: 'Hugo', statut: 'Professeur', numInscription: '2025008', salle: 'A101' },
-    { id: 4, nom: 'Simon', prenom: 'Léa', statut: 'Étudiant', numInscription: '2025009', salle: 'B202' },
-    { id: 5, nom: 'Laurent', prenom: 'Jules', statut: 'Admin 2IE', numInscription: '2025010', salle: 'D404' },
-  ];
+        // Récupérer les badges (tous les utilisateurs)
+        const badgesResponse = await api.get('/users');
+        setBadges(badgesResponse.data.map(user => ({
+          id: user.id,
+          nom: user.nom,
+          prenom: user.prenom,
+          statut: user.statut,
+          numInscription: user.email,
+          actif: user.etat,
+        })));
 
-  const sallesData = [
-    { id: 'A101', count: 15 },
-    { id: 'B202', count: 12 },
-    { id: 'C303', count: 8 },
-    { id: 'D404', count: 7 },
-  ];
+        // Récupérer les demandes d'accès
+        const demandesResponse = await api.get('/demande-acces');
+        const demandesData = await Promise.all(
+          demandesResponse.data.demandes.map(async (demande) => {
+            const user = (await api.get(`/users/${demande.user_id}`)).data;
+            const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
+            return {
+              id: demande.id,
+              nom: user.nom,
+              prenom: user.prenom,
+              statut: user.statut,
+              numInscription: user.email,
+              salle: salle.nom,
+            };
+          })
+        );
+        setDemandes(demandesData);
+
+        // Récupérer les sous-admins
+        const subAdminsResponse = await api.get('/users?admin=true');
+        setSubAdmins(subAdminsResponse.data);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Erreur lors du chargement des données.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Fonction pour basculer l'état du badge (actif/inactif)
-  const toggleBadgeStatus = (id) => {
-    console.log(`Basculer le statut du badge ${id}`);
+  const toggleBadgeStatus = async (id) => {
+    try {
+      const user = badges.find(b => b.id === id);
+      await api.patch(`/users/${id}`, { etat: !user.actif });
+      setBadges(badges.map(b => b.id === id ? { ...b, actif: !b.actif } : b));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la mise à jour du badge.');
+    }
+  };
+
+  // Fonction pour basculer le statut admin
+  const toggleAdminStatus = async (id) => {
+    try {
+      const admin = subAdmins.find(a => a.id === id);
+      await api.patch(`/users/${id}`, { isadmin: !admin.isadmin });
+      setSubAdmins(subAdmins.map(a => a.id === id ? { ...a, isadmin: !a.isadmin } : a));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la mise à jour du statut admin.');
+    }
   };
 
   // Fonction pour approuver une demande d'accès
-  const approveRequest = (id) => {
-    console.log(`Demande ${id} approuvée`);
+  const approveRequest = async (id) => {
+    try {
+      await api.patch(`/demande-acces/${id}/approuver`);
+      setDemandes(demandes.filter(d => d.id !== id));
+      // Rafraîchir les personnes présentes
+      const demandesApprouvees = await api.get('/demande-acces?statut=approuvee');
+      const personnesData = await Promise.all(
+        demandesApprouvees.data.demandes.map(async (demande) => {
+          const user = (await api.get(`/users/${demande.user_id}`)).data;
+          const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
+          return {
+            id: demande.id,
+            nom: user.nom,
+            prenom: user.prenom,
+            statut: user.statut,
+            salle: salle.nom,
+            numInscription: user.email,
+            heureEntree: new Date(demande.created_at).toLocaleTimeString(),
+          };
+        })
+      );
+      setPersonnes(personnesData);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de l\'approbation de la demande.');
+    }
   };
 
   // Fonction pour rejeter une demande d'accès
-  const rejectRequest = (id) => {
-    console.log(`Demande ${id} rejetée`);
+  const rejectRequest = async (id) => {
+    try {
+      await api.patch(`/demande-acces/${id}/rejeter`);
+      setDemandes(demandes.filter(d => d.id !== id));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors du rejet de la demande.');
+    }
   };
 
-  // Filtrage des données en fonction du terme de recherche et du filtre
-  const filteredPersonnes = personnesData.filter(personne => {
+  // Fonction pour ajouter un sous-admin
+  const handleAddSubAdmin = (newAdmin) => {
+    setSubAdmins([...subAdmins, newAdmin]);
+  };
+
+  // Filtrage des données
+  const filteredPersonnes = personnes.filter(personne => {
     const matchesSearch = 
       personne.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       personne.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personne.numInscription.includes(searchTerm.toLowerCase());
+      personne.numInscription.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filterBy === 'tous') return matchesSearch;
     return matchesSearch && personne.salle === filterBy;
   });
 
-  const filteredBadges = badgesData.filter(badge => 
+  const filteredBadges = badges.filter(badge => 
     badge.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     badge.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    badge.numInscription.includes(searchTerm.toLowerCase())
+    badge.numInscription.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredDemandes = demandesData.filter(demande => 
+  const filteredDemandes = demandes.filter(demande => 
     demande.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     demande.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    demande.numInscription.includes(searchTerm.toLowerCase()) ||
-    demande.salle.includes(searchTerm.toLowerCase())
+    demande.numInscription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    demande.salle.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredSubAdmins = subAdmins.filter(admin => 
+    admin.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    admin.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    admin.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) return <div className="flex justify-center items-center h-screen">Chargement...</div>;
+  if (error) return <div className="flex justify-center items-center h-screen text-red-500">{error}</div>;
 
   return (
     <div className="flex flex-col h-screen w-screen -ml-100">
@@ -275,7 +504,7 @@ export default function AdminDashboard() {
               <User className="h-5 w-5 text-gray-600 mr-3" />
               <span className="text-gray-700 font-medium">Personnes présentes</span>
               <span className="ml-auto bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {personnesData.length}
+                {personnes.length}
               </span>
             </div>
             <div
@@ -290,7 +519,7 @@ export default function AdminDashboard() {
               <Key className="h-5 w-5 text-gray-600 mr-3" />
               <span className="text-gray-700 font-medium">Badges enregistrés</span>
               <span className="ml-auto bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {badgesData.length}
+                {badges.length}
               </span>
             </div>
             <div
@@ -305,7 +534,22 @@ export default function AdminDashboard() {
               <Clock className="h-5 w-5 text-gray-600 mr-3" />
               <span className="text-gray-700 font-medium">Demandes d'accès</span>
               <span className="ml-auto bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {demandesData.length}
+                {demandes.length}
+              </span>
+            </div>
+            <div
+              className={`flex items-center px-6 py-4 cursor-pointer transition-all duration-200 ${
+                activeTab === 'subadmins' ? 'bg-purple-50 border-l-4 border-purple-500' : 'hover:bg-gray-100'
+              }`}
+              onClick={() => {
+                setActiveTab('subadmins');
+                setShowMobileMenu(false);
+              }}
+            >
+              <Shield className="h-5 w-5 text-gray-600 mr-3" />
+              <span className="text-gray-700 font-medium">Sous-admins</span>
+              <span className="ml-auto bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                {subAdmins.length}
               </span>
             </div>
             <div className="px-6 py-2">
@@ -338,6 +582,7 @@ export default function AdminDashboard() {
                 {activeTab === 'personnes' && <span className="text-red-600">Personnes présentes</span>}
                 {activeTab === 'badges' && <span className="text-blue-500">Badges enregistrés</span>}
                 {activeTab === 'demandes' && <span className="text-yellow-500">Demandes d'accès</span>}
+                {activeTab === 'subadmins' && <span className="text-purple-500">Sous-admins</span>}
               </h1>
               <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full md:w-auto">
                 {activeTab === 'personnes' && (
@@ -349,9 +594,9 @@ export default function AdminDashboard() {
                       onChange={(e) => setFilterBy(e.target.value)}
                     >
                       <option value="tous">Toutes les salles</option>
-                      {sallesData.map((salle) => (
-                        <option key={salle.id} value={salle.id}>
-                          Salle {salle.id}
+                      {salles.map((salle) => (
+                        <option key={salle.id} value={salle.nom}>
+                          Salle {salle.nom}
                         </option>
                       ))}
                     </select>
@@ -367,6 +612,15 @@ export default function AdminDashboard() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+                {activeTab === 'subadmins' && (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center px-4 py-2 rounded-md text-white bg-purple-500 hover:bg-purple-600"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Ajouter un sous-admin
+                  </button>
+                )}
               </div>
             </div>
 
@@ -383,7 +637,7 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
+                        Email
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Salle
@@ -413,7 +667,7 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              personne.statut === 'Admin 2IE'
+                              personne.statut === 'Travailleur 2IE'
                                 ? 'bg-blue-100 text-blue-800'
                                 : personne.statut === 'Professeur'
                                 ? 'bg-green-100 text-green-800'
@@ -460,7 +714,7 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
+                        Email
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         État
@@ -547,7 +801,7 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
+                        Email
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Salle demandée
@@ -624,9 +878,101 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
+            {activeTab === 'subadmins' && (
+              <div className="bg-white shadow-lg rounded-xl overflow-hidden w-full mx-auto max-w-7xl">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Nom & Prénom
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Statut
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Rôle Admin
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredSubAdmins.map((admin) => (
+                      <tr key={admin.id} className="hover:bg-gray-50 transition-colors duration-200">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                              <span className="font-medium text-purple-600">
+                                {admin.prenom[0]}{admin.nom[0]}
+                              </span>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {admin.nom} {admin.prenom}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              admin.statut === 'Admin 2IE'
+                                ? 'bg-blue-100 text-blue-800'
+                                : admin.statut === 'Professeur'
+                                ? 'bg-green-100 text-green-800'
+                                : admin.statut === 'Étudiant'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {admin.statut}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {admin.email}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              admin.isadmin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {admin.isadmin ? 'Actif' : 'Inactif'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => toggleAdminStatus(admin.id)}
+                            className={`px-4 py-2 rounded-md text-white shadow-sm transition-all duration-200 ${
+                              admin.isadmin ? 'bg-red-600 hover:bg-red-700' : 'bg-green-500 hover:bg-green-600'
+                            }`}
+                          >
+                            {admin.isadmin ? 'Retirer' : 'Ajouter'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filteredSubAdmins.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucun sous-admin ne correspond à votre recherche
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+      <AddSubAdminModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddSubAdmin}
+      />
       <Footer />
     </div>
   );
