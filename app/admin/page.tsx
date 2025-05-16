@@ -158,10 +158,21 @@ const Footer = () => {
     </footer>
   );
 };
+type Admin = {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  isadmin: boolean;
+  statut: string;
+  numero_inscription: string | null;
+  uid_badge_rfid: string | null;
+};
+
 type AddSubAdminModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (formData: { nom: string; prenom: string; email: string; password: string }) => void;
+  onAdd: (admin: Admin) => void;
 };
 
 // Composant pour le formulaire d'ajout de sous-admin
@@ -216,7 +227,13 @@ const AddSubAdminModal: React.FC<AddSubAdminModalProps> = ({ isOpen, onClose, on
       });
       setTimeout(onClose, 2000);
     } catch (err: unknown) {
-      setError(err.response?.data?.error || 'Erreur lors de l\'ajout du sous-admin.');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (axios.isAxiosError(err) && err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Erreur lors de l\'ajout du sous-admin.');
+      }
       setSuccess('');
     }
   };
@@ -338,11 +355,36 @@ export default function AdminDashboard() {
   const [filterBy, setFilterBy] = useState('tous');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [personnes, setPersonnes] = useState([]);
-  const [badges, setBadges] = useState([]);
-  const [demandes, setDemandes] = useState([]);
-  const [subAdmins, setSubAdmins] = useState([]);
-  const [salles, setSalles] = useState([]);
+  interface Personne {
+    id: string;
+    nom: string;
+    prenom: string;
+    statut: string;
+    salle: string;
+    numero_inscription: string;
+    uid_badge_rfid: string;
+    heureEntree: string;
+  }
+  
+    const [personnes, setPersonnes] = useState<Personne[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  interface Demande {
+    id: string;
+    nom: string;
+    prenom: string;
+    statut: string;
+    salle: string;
+    numero_inscription: string;
+    uid_badge_rfid: string;
+  }
+
+  const [demandes, setDemandes] = useState<Demande[]>([]);
+  const [subAdmins, setSubAdmins] = useState<Admin[]>([]);
+  interface Salle {
+    id: string;
+    nom: string;
+  }
+  const [salles, setSalles] = useState<Salle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -369,7 +411,7 @@ export default function AdminDashboard() {
         // Récupérer les personnes présentes (demandes approuvées)
         const demandesApprouvees = await api.get('/demande-acces?statut=approuvee');
         const personnesData = await Promise.all(
-          demandesApprouvees.data.demandes.map(async (demande) => {
+          demandesApprouvees.data.demandes.map(async (demande: { user_id: any; salle_id: any; id: any; created_at: string | number | Date; }) => {
             const user = (await api.get(`/users/${demande.user_id}`)).data;
             const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
             return {
@@ -388,7 +430,7 @@ export default function AdminDashboard() {
 
         // Récupérer les badges (tous les utilisateurs)
         const badgesResponse = await api.get('/users');
-        setBadges(badgesResponse.data.map(user => ({
+        setBadges(badgesResponse.data.map((user: { id: any; nom: any; prenom: any; statut: any; numero_inscription: any; uid_badge_rfid: any; etat: any; }) => ({
           id: user.id,
           nom: user.nom,
           prenom: user.prenom,
@@ -401,7 +443,7 @@ export default function AdminDashboard() {
         // Récupérer les demandes d'accès
         const demandesResponse = await api.get('/demande-acces');
         const demandesData = await Promise.all(
-          demandesResponse.data.demandes.map(async (demande) => {
+          demandesResponse.data.demandes.map(async (demande: { user_id: any; salle_id: any; id: any; }) => {
             const user = (await api.get(`/users/${demande.user_id}`)).data;
             const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
             return {
@@ -415,51 +457,97 @@ export default function AdminDashboard() {
             };
           })
         );
-        setDemandes(demandesData);
+        setDemandes(demandesData as never[]);
 
         // Récupérer les sous-admins
         const subAdminsResponse = await api.get('/users?admin=true');
         setSubAdmins(subAdminsResponse.data);
       } catch (err) {
-        setError(err.response?.data?.error || 'Erreur lors du chargement des données.');
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+          setError(err.response.data.error);
+        } else if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Erreur lors du chargement des données.');
+        }
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, []);
+  // Define interfaces for your data types
+  interface Badge {
+    id: string;
+    nom: string;
+    prenom: string;
+    statut: string;
+    actif: boolean;
+    numero_inscription: string;
+    uid_badge_rfid: string;
+  }
+
+  interface Admin {
+    id: string;
+    nom: string;
+    prenom: string;
+    email: string;
+    isadmin: boolean;
+    statut: string;
+    numero_inscription: string | null;
+    uid_badge_rfid: string | null;
+  }
+
+  interface Demande {
+    id: string;
+    user_id: string;
+    salle_id: string;
+    nom: string;
+    prenom: string;
+    statut: string;
+    salle: string;
+    numero_inscription: string;
+    uid_badge_rfid: string;
+    created_at: string;
+  }
 
   // Fonction pour basculer l'état du badge (actif/inactif)
-  const toggleBadgeStatus = async (id) => {
+  const toggleBadgeStatus = async (id: string) => {
     try {
-      const user = badges.find(b => b.id === id);
+      const user = badges.find((b: Badge) => b.id === id);
+      if (!user) return;
       await api.patch(`/users/${id}`, { etat: !user.actif });
-      setBadges(badges.map(b => b.id === id ? { ...b, actif: !b.actif } : b));
+      setBadges(badges.map((b: Badge) => b.id === id ? { ...b, actif: !b.actif } : b));
     } catch (err) {
-      setError(err.response?.data?.error || 'Erreur lors de la mise à jour du badge.');
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Erreur lors de la mise à jour du badge.');
+      }
     }
   };
 
   // Fonction pour basculer le statut admin
-  const toggleAdminStatus = async (id) => {
+  const toggleAdminStatus = async (id: string) => {
     try {
-      const admin = subAdmins.find(a => a.id === id);
+      const admin = subAdmins.find((a: Admin) => a.id === id);
+      if (!admin) return;
       await api.patch(`/users/${id}`, { isadmin: !admin.isadmin });
-      setSubAdmins(subAdmins.map(a => a.id === id ? { ...a, isadmin: !a.isadmin } : a));
+      setSubAdmins(subAdmins.map((a: Admin) => a.id === id ? { ...a, isadmin: !a.isadmin } : a) as never[]);
     } catch (err) {
-      setError(err.response?.data?.error || 'Erreur lors de la mise à jour du statut admin.');
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Erreur lors de la mise à jour du statut admin.');
+      }
     }
   };
 
   // Fonction pour approuver une demande d'accès
-  const approveRequest = async (id) => {
+  const approveRequest = async (id: string) => {
     try {
       await api.patch(`/demande-acces/${id}/approuver`);
-      setDemandes(demandes.filter(d => d.id !== id));
+      setDemandes(demandes.filter((d: Demande) => d.id !== id));
       // Rafraîchir les personnes présentes
       const demandesApprouvees = await api.get('/demande-acces?statut=approuvee');
       const personnesData = await Promise.all(
-        demandesApprouvees.data.demandes.map(async (demande) => {
+        demandesApprouvees.data.demandes.map(async (demande: Demande) => {
           const user = (await api.get(`/users/${demande.user_id}`)).data;
           const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
           return {
@@ -476,23 +564,27 @@ export default function AdminDashboard() {
       );
       setPersonnes(personnesData);
     } catch (err) {
-      setError(err.response?.data?.error || 'Erreur lors de l\'approbation de la demande.');
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Erreur lors de l\'approbation de la demande.');
+      }
     }
   };
 
   // Fonction pour rejeter une demande d'accès
-  const rejectRequest = async (id) => {
+  const rejectRequest = async (id: string) => {
     try {
       await api.patch(`/demande-acces/${id}/rejeter`);
-      setDemandes(demandes.filter(d => d.id !== id));
+      setDemandes(demandes.filter((d: Demande) => d.id !== id));
     } catch (err) {
-      setError(err.response?.data?.error || 'Erreur lors du rejet de la demande.');
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Erreur lors du rejet de la demande.');
+      }
     }
   };
 
   // Fonction pour ajouter un sous-admin
-  const handleAddSubAdmin = (newAdmin) => {
-    setSubAdmins([...subAdmins, newAdmin]);
+  const handleAddSubAdmin = (newAdmin: Admin) => {
+    setSubAdmins([...subAdmins, newAdmin] as never[]);
   };
 
   // Filtrage des données
@@ -507,14 +599,14 @@ export default function AdminDashboard() {
     return matchesSearch && personne.salle === filterBy;
   });
 
-  const filteredBadges = badges.filter(badge => 
+  const filteredBadges = badges.filter((badge: Badge) => 
     badge.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     badge.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (badge.numero_inscription !== 'Non défini' && badge.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (badge.uid_badge_rfid !== 'Non défini' && badge.uid_badge_rfid.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const filteredDemandes = demandes.filter(demande => 
+  const filteredDemandes = demandes.filter((demande: Demande) => 
     demande.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     demande.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (demande.numero_inscription !== 'Non défini' && demande.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -522,7 +614,7 @@ export default function AdminDashboard() {
     demande.salle.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredSubAdmins = subAdmins.filter(admin => 
+  const filteredSubAdmins = subAdmins.filter((admin: Admin) => 
     admin.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     admin.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     admin.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -534,543 +626,285 @@ export default function AdminDashboard() {
   if (error) return <div className="flex justify-center items-center h-screen text-red-500">{error}</div>;
 
   return (
-    <div className="flex flex-col h-screen w-screen -ml-100">
-      <style jsx global>{`
-        html, body {
-          margin: 0;
-          padding: 0;
-          height: 100vh;
-          width: 100vw;
-          overflow: hidden;
-        }
-      `}</style>
+    <>
       <Navbar />
-      <div className="flex flex-1 overflow-hidden pt-20 pb-32">
-        {/* Sidebar */}
-        <div className="hidden md:block w-72 bg-white shadow-xl border-r border-gray-200 fixed top-20 bottom-32 overflow-y-auto">
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-800">Admin 2iE</h1>
-          </div>
-          <nav className="mt-6">
-            <Link href="/" className="flex items-center px-6 py-4 text-gray-700 hover:bg-gray-100 transition-all duration-200">
-              <Home className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="font-medium">Accueil</span>
-            </Link>
-            <div className="px-6 py-2">
-              <h2 className="text-xs uppercase font-semibold text-gray-500 tracking-wide">Gestion des Accès</h2>
-            </div>
-            <div
-              className={`flex items-center px-6 py-4 cursor-pointer transition-all duration-200 ${
-                activeTab === 'personnes' ? 'bg-red-50 border-l-4 border-red-600' : 'hover:bg-gray-100'
-              }`}
-              onClick={() => {
-                setActiveTab('personnes');
-                setShowMobileMenu(false);
-              }}
-            >
-              <User className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-gray-700 font-medium">Personnes présentes</span>
-              <span className="ml-auto bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {personnes.length}
-              </span>
-            </div>
-            <div
-              className={`flex items-center px-6 py-4 cursor-pointer transition-all duration-200 ${
-                activeTab === 'badges' ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-100'
-              }`}
-              onClick={() => {
-                setActiveTab('badges');
-                setShowMobileMenu(false);
-              }}
-            >
-              <Key className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-gray-700 font-medium">Badges enregistrés</span>
-              <span className="ml-auto bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {badges.length}
-              </span>
-            </div>
-            <div
-              className={`flex items-center px-6 py-4 cursor-pointer transition-all duration-200 ${
-                activeTab === 'demandes' ? 'bg-yellow-50 border-l-4 border-yellow-500' : 'hover:bg-gray-100'
-              }`}
-              onClick={() => {
-                setActiveTab('demandes');
-                setShowMobileMenu(false);
-              }}
-            >
-              <Clock className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-gray-700 font-medium">Demandes d'accès</span>
-              <span className="ml-auto bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {demandes.length}
-              </span>
-            </div>
-            <div
-              className={`flex items-center px-6 py-4 cursor-pointer transition-all duration-200 ${
-                activeTab === 'subadmins' ? 'bg-purple-50 border-l-4 border-purple-500' : 'hover:bg-gray-100'
-              }`}
-              onClick={() => {
-                setActiveTab('subadmins');
-                setShowMobileMenu(false);
-              }}
-            >
-              <Shield className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-gray-700 font-medium">Sous-admins</span>
-              <span className="ml-auto bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                {subAdmins.length}
-              </span>
-            </div>
-            <div className="px-6 py-2">
-              <h2 className="text-xs uppercase font-semibold text-gray-500 tracking-wide">Analyse</h2>
-            </div>
-            <Link href="/admin/statistics" className="flex items-center px-6 py-4 text-gray-700 hover:bg-gray-100 transition-all duration-200">
-              <BarChart2 className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="font-medium">Voir les statistiques</span>
-            </Link>
-            <Link href="/admin/settings" className="flex items-center px-6 py-4 text-gray-700 hover:bg-gray-100 transition-all duration-200">
-              <Settings className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="font-medium">Paramètres</span>
-            </Link>
-          </nav>
-        </div>
-
-        {/* Bouton pour afficher le menu sur mobile */}
-        <div className="md:hidden fixed top-24 right-4 z-50">
-          <button onClick={() => setShowMobileMenu(true)}>
-            <Menu className="h-8 w-8 text-gray-600" />
+      <div className="pt-24 pb-24 min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex flex-col md:flex-row md:space-x-6">
+        {/* Sidebar Tabs */}
+        <div className="mb-4 md:mb-0 md:w-1/4">
+          <div className="bg-white rounded-lg shadow p-4 flex md:flex-col space-x-2 md:space-x-0 md:space-y-2">
+          <button
+            className={`flex items-center px-4 py-2 rounded-md w-full text-left ${activeTab === 'personnes' ? 'bg-purple-100 text-purple-700 font-semibold' : 'hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('personnes')}
+          >
+            <User className="mr-2 h-5 w-5" /> Personnes présentes
           </button>
+          <button
+            className={`flex items-center px-4 py-2 rounded-md w-full text-left ${activeTab === 'badges' ? 'bg-purple-100 text-purple-700 font-semibold' : 'hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('badges')}
+          >
+            <Key className="mr-2 h-5 w-5" /> Badges
+          </button>
+          <button
+            className={`flex items-center px-4 py-2 rounded-md w-full text-left ${activeTab === 'demandes' ? 'bg-purple-100 text-purple-700 font-semibold' : 'hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('demandes')}
+          >
+            <Clock className="mr-2 h-5 w-5" /> Demandes d'accès
+          </button>
+          <button
+            className={`flex items-center px-4 py-2 rounded-md w-full text-left ${activeTab === 'subadmins' ? 'bg-purple-100 text-purple-700 font-semibold' : 'hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('subadmins')}
+          >
+            <Shield className="mr-2 h-5 w-5" /> Sous-admins
+          </button>
+          </div>
         </div>
-
         {/* Main Content */}
-        <div className="flex-1 overflow-auto md:ml-72 bg-gray-50 w-full">
-          <div className="p-8 mx-auto max-w-7xl">
-            {/* Header et barre de recherche */}
-            <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-between mb-8 w-full">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4 md:mb-0 text-center md:text-left">
-                {activeTab === 'personnes' && <span className="text-red-600">Personnes présentes</span>}
-                {activeTab === 'badges' && <span className="text-blue-500">Badges enregistrés</span>}
-                {activeTab === 'demandes' && <span className="text-yellow-500">Demandes d'accès</span>}
-                {activeTab === 'subadmins' && <span className="text-purple-500">Sous-admins</span>}
-              </h1>
-              <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full md:w-auto">
-                {activeTab === 'personnes' && (
-                  <div className="relative w-full md:w-auto">
-                    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <select
-                      className="pl-9 pr-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 w-full md:w-auto"
-                      value={filterBy}
-                      onChange={(e) => setFilterBy(e.target.value)}
-                    >
-                      <option value="tous">Toutes les salles</option>
-                      {salles.map((salle) => (
-                        <option key={salle.id} value={salle.nom}>
-                          Salle {salle.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="relative w-full md:w-64">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    className="pl-9 pr-4 py-2 w-full border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                {activeTab === 'subadmins' && (
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center px-4 py-2 rounded-md text-white bg-purple-500 hover:bg-purple-600"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Ajouter un sous-admin
-                  </button>
-                )}
-              </div>
+        <div className="flex-1">
+          {/* Search and Filter */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 space-y-2 md:space-y-0">
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+            <input
+              type="text"
+              placeholder="Recherche..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+            <Search className="absolute left-2 top-2.5 h-5 w-5 text-gray-400" />
             </div>
-
-            {/* Contenu principal selon l'onglet actif */}
             {activeTab === 'personnes' && (
-              <div className="bg-white shadow-lg rounded-xl overflow-hidden w-full mx-auto max-w-7xl">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Nom & Prénom
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        UID RFID
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Salle
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Heure d'entrée
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredPersonnes.map((personne) => (
-                      <tr key={personne.id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                              <span className="font-medium text-red-600">
-                                {personne.prenom[0]}{personne.nom[0]}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {personne.nom} {personne.prenom}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              personne.statut === 'Travailleur 2iE'
-                                ? 'bg-blue-100 text-blue-800'
-                                : personne.statut === 'Professeur'
-                                ? 'bg-green-100 text-green-800'
-                                : personne.statut === 'Étudiant'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}
-                          >
-                            {personne.statut}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {personne.numero_inscription}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {personne.uid_badge_rfid}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          Salle {personne.salle}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                            {personne.heureEntree}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredPersonnes.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    Aucune personne ne correspond à votre recherche
-                  </div>
-                )}
-              </div>
-            )}
-            {activeTab === 'badges' && (
-              <div className="bg-white shadow-lg rounded-xl overflow-hidden w-full mx-auto max-w-7xl">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Nom & Prénom
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        UID RFID
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        État
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredBadges.map((badge) => (
-                      <tr key={badge.id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                              <span className="font-medium text-blue-600">
-                                {badge.prenom[0]}{badge.nom[0]}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {badge.nom} {badge.prenom}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              badge.statut === 'Travailleur 2iE'
-                                ? 'bg-blue-100 text-blue-800'
-                                : badge.statut === 'Professeur'
-                                ? 'bg-green-100 text-green-800'
-                                : badge.statut === 'Étudiant'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}
-                          >
-                            {badge.statut}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {badge.numero_inscription}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {badge.uid_badge_rfid}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              badge.actif ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {badge.actif ? 'Actif' : 'Inactif'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => toggleBadgeStatus(badge.id)}
-                            className={`px-4 py-2 rounded-md text-white shadow-sm transition-all duration-200 ${
-                              badge.actif ? 'bg-red-600 hover:bg-red-700' : 'bg-green-500 hover:bg-green-600'
-                            }`}
-                          >
-                            {badge.actif ? 'Désactiver' : 'Activer'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredBadges.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    Aucun badge ne correspond à votre recherche
-                  </div>
-                )}
-              </div>
-            )}
-            {activeTab === 'demandes' && (
-              <div className="bg-white shadow-lg rounded-xl overflow-hidden w-full mx-auto max-w-7xl">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Nom & Prénom
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        UID RFID
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Salle demandée
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredDemandes.map((demande) => (
-                      <tr key={demande.id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                              <span className="font-medium text-yellow-600">
-                                {demande.prenom[0]}{demande.nom[0]}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {demande.nom} {demande.prenom}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              demande.statut === 'Travailleur 2iE'
-                                ? 'bg-blue-100 text-blue-800'
-                                : demande.statut === 'Professeur'
-                                ? 'bg-green-100 text-green-800'
-                                : demande.statut === 'Étudiant'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}
-                          >
-                            {demande.statut}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {demande.numero_inscription}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {demande.uid_badge_rfid}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          Salle {demande.salle}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-3">
-                            <button
-                              onClick={() => approveRequest(demande.id)}
-                              className="flex items-center px-4 py-2 rounded-md text-white bg-green-500 hover:bg-green-600 shadow-sm transition-all duration-200"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Valider
-                            </button>
-                            <button
-                              onClick={() => rejectRequest(demande.id)}
-                              className="flex items-center px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all duration-200"
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Rejeter
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredDemandes.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    Aucune demande ne correspond à votre recherche
-                  </div>
-                )}
-              </div>
-            )}
-            {activeTab === 'subadmins' && (
-              <div className="bg-white shadow-lg rounded-xl overflow-hidden w-full mx-auto max-w-7xl">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Nom & Prénom
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        N° Inscription
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        UID RFID
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Rôle Admin
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredSubAdmins.map((admin) => (
-                      <tr key={admin.id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                              <span className="font-medium text-purple-600">
-                                {admin.prenom[0]}{admin.nom[0]}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {admin.nom} {admin.prenom}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              admin.statut === 'Travailleur 2iE'
-                                ? 'bg-blue-100 text-blue-800'
-                                : admin.statut === 'Professeur'
-                                ? 'bg-green-100 text-green-800'
-                                : admin.statut === 'Étudiant'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}
-                          >
-                            {admin.statut}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {admin.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {admin.numero_inscription || 'Non défini'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {admin.uid_badge_rfid || 'Non défini'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              admin.isadmin ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {admin.isadmin ? 'Actif' : 'Inactif'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => toggleAdminStatus(admin.id)}
-                            className={`px-4 py-2 rounded-md text-white shadow-sm transition-all duration-200 ${
-                              admin.isadmin ? 'bg-red-600 hover:bg-red-700' : 'bg-green-500 hover:bg-green-600'
-                            }`}
-                          >
-                            {admin.isadmin ? 'Retirer' : 'Ajouter'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredSubAdmins.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    Aucun sous-admin ne correspond à votre recherche
-                  </div>
-                )}
-              </div>
+            <select
+              value={filterBy}
+              onChange={e => setFilterBy(e.target.value)}
+              className="ml-2 px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="tous">Toutes les salles</option>
+              {salles.map(salle => (
+              <option key={salle.id} value={salle.nom}>{salle.nom}</option>
+              ))}
+            </select>
             )}
           </div>
+          {activeTab === 'subadmins' && (
+            <button
+            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            onClick={() => setShowAddModal(true)}
+            >
+            <Plus className="mr-2 h-5 w-5" /> Ajouter un sous-admin
+            </button>
+          )}
+          </div>
+          {/* Tab Content */}
+          {activeTab === 'personnes' && (
+          <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+            <h2 className="text-lg font-semibold mb-4">Personnes présentes</h2>
+            <table className="min-w-full">
+            <thead>
+              <tr>
+              <th className="px-4 py-2">Nom</th>
+              <th className="px-4 py-2">Prénom</th>
+              <th className="px-4 py-2">Statut</th>
+              <th className="px-4 py-2">Salle</th>
+              <th className="px-4 py-2">Numéro d'inscription</th>
+              <th className="px-4 py-2">UID Badge RFID</th>
+              <th className="px-4 py-2">Heure d'entrée</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPersonnes.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-4 text-gray-500">Aucune personne présente.</td>
+              </tr>
+              ) : (
+              filteredPersonnes.map(personne => (
+                <tr key={personne.id}>
+                <td className="px-4 py-2">{personne.nom}</td>
+                <td className="px-4 py-2">{personne.prenom}</td>
+                <td className="px-4 py-2">{personne.statut}</td>
+                <td className="px-4 py-2">{personne.salle}</td>
+                <td className="px-4 py-2">{personne.numero_inscription}</td>
+                <td className="px-4 py-2">{personne.uid_badge_rfid}</td>
+                <td className="px-4 py-2">{personne.heureEntree}</td>
+                </tr>
+              ))
+              )}
+            </tbody>
+            </table>
+          </div>
+          )}
+          {activeTab === 'badges' && (
+          <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+            <h2 className="text-lg font-semibold mb-4">Badges</h2>
+            <table className="min-w-full">
+            <thead>
+              <tr>
+              <th className="px-4 py-2">Nom</th>
+              <th className="px-4 py-2">Prénom</th>
+              <th className="px-4 py-2">Statut</th>
+              <th className="px-4 py-2">Numéro d'inscription</th>
+              <th className="px-4 py-2">UID Badge RFID</th>
+              <th className="px-4 py-2">État</th>
+              <th className="px-4 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBadges.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-4 text-gray-500">Aucun badge trouvé.</td>
+              </tr>
+              ) : (
+              filteredBadges.map(badge => (
+                <tr key={badge.id}>
+                <td className="px-4 py-2">{badge.nom}</td>
+                <td className="px-4 py-2">{badge.prenom}</td>
+                <td className="px-4 py-2">{badge.statut}</td>
+                <td className="px-4 py-2">{badge.numero_inscription}</td>
+                <td className="px-4 py-2">{badge.uid_badge_rfid}</td>
+                <td className="px-4 py-2">
+                  {badge.actif ? (
+                  <span className="inline-flex items-center text-green-600">
+                    <CheckCircle className="h-5 w-5 mr-1" /> Actif
+                  </span>
+                  ) : (
+                  <span className="inline-flex items-center text-red-600">
+                    <XCircle className="h-5 w-5 mr-1" /> Inactif
+                  </span>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  <button
+                  className={`px-3 py-1 rounded-md text-white ${badge.actif ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+                  onClick={() => toggleBadgeStatus(badge.id)}
+                  >
+                  {badge.actif ? 'Désactiver' : 'Activer'}
+                  </button>
+                </td>
+                </tr>
+              ))
+              )}
+            </tbody>
+            </table>
+          </div>
+          )}
+          {activeTab === 'demandes' && (
+          <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+            <h2 className="text-lg font-semibold mb-4">Demandes d'accès</h2>
+            <table className="min-w-full">
+            <thead>
+              <tr>
+              <th className="px-4 py-2">Nom</th>
+              <th className="px-4 py-2">Prénom</th>
+              <th className="px-4 py-2">Statut</th>
+              <th className="px-4 py-2">Salle</th>
+              <th className="px-4 py-2">Numéro d'inscription</th>
+              <th className="px-4 py-2">UID Badge RFID</th>
+              <th className="px-4 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDemandes.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-4 text-gray-500">Aucune demande en attente.</td>
+              </tr>
+              ) : (
+              filteredDemandes.map(demande => (
+                <tr key={demande.id}>
+                <td className="px-4 py-2">{demande.nom}</td>
+                <td className="px-4 py-2">{demande.prenom}</td>
+                <td className="px-4 py-2">{demande.statut}</td>
+                <td className="px-4 py-2">{demande.salle}</td>
+                <td className="px-4 py-2">{demande.numero_inscription}</td>
+                <td className="px-4 py-2">{demande.uid_badge_rfid}</td>
+                <td className="px-4 py-2 flex space-x-2">
+                  <button
+                  className="px-3 py-1 rounded-md bg-green-500 text-white hover:bg-green-600"
+                  onClick={() => approveRequest(demande.id)}
+                  >
+                  Approuver
+                  </button>
+                  <button
+                  className="px-3 py-1 rounded-md bg-red-500 text-white hover:bg-red-600"
+                  onClick={() => rejectRequest(demande.id)}
+                  >
+                  Rejeter
+                  </button>
+                </td>
+                </tr>
+              ))
+              )}
+            </tbody>
+            </table>
+          </div>
+          )}
+          {activeTab === 'subadmins' && (
+          <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+            <h2 className="text-lg font-semibold mb-4">Sous-admins</h2>
+            <table className="min-w-full">
+            <thead>
+              <tr>
+              <th className="px-4 py-2">Nom</th>
+              <th className="px-4 py-2">Prénom</th>
+              <th className="px-4 py-2">Email</th>
+              <th className="px-4 py-2">Statut</th>
+              <th className="px-4 py-2">Numéro d'inscription</th>
+              <th className="px-4 py-2">UID Badge RFID</th>
+              <th className="px-4 py-2">Admin</th>
+              <th className="px-4 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSubAdmins.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="text-center py-4 text-gray-500">Aucun sous-admin trouvé.</td>
+              </tr>
+              ) : (
+              filteredSubAdmins.map(admin => (
+                <tr key={admin.id}>
+                <td className="px-4 py-2">{admin.nom}</td>
+                <td className="px-4 py-2">{admin.prenom}</td>
+                <td className="px-4 py-2">{admin.email}</td>
+                <td className="px-4 py-2">{admin.statut}</td>
+                <td className="px-4 py-2">{admin.numero_inscription || 'Non défini'}</td>
+                <td className="px-4 py-2">{admin.uid_badge_rfid || 'Non défini'}</td>
+                <td className="px-4 py-2">
+                  {admin.isadmin ? (
+                  <span className="inline-flex items-center text-green-600">
+                    <CheckCircle className="h-5 w-5 mr-1" /> Oui
+                  </span>
+                  ) : (
+                  <span className="inline-flex items-center text-red-600">
+                    <XCircle className="h-5 w-5 mr-1" /> Non
+                  </span>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  <button
+                  className={`px-3 py-1 rounded-md text-white ${admin.isadmin ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+                  onClick={() => toggleAdminStatus(admin.id)}
+                  >
+                  {admin.isadmin ? 'Retirer admin' : 'Rendre admin'}
+                  </button>
+                </td>
+                </tr>
+              ))
+              )}
+            </tbody>
+            </table>
+          </div>
+          )}
+        </div>
         </div>
       </div>
-      <AddSubAdminModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAdd={handleAddSubAdmin}
-      />
+      </div>
       <Footer />
-    </div>
+      <AddSubAdminModal
+      isOpen={showAddModal}
+      onClose={() => setShowAddModal(false)}
+      onAdd={(admin) => handleAddSubAdmin(admin)}
+      />
+    </>
   );
 }
