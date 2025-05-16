@@ -215,7 +215,7 @@ const AddSubAdminModal: React.FC<AddSubAdminModalProps> = ({ isOpen, onClose, on
         uid_badge_rfid: '',
       });
       setTimeout(onClose, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.response?.data?.error || 'Erreur lors de l\'ajout du sous-admin.');
       setSuccess('');
     }
