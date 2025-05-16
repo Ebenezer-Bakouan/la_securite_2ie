@@ -1,13 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import axios from 'axios';
 import { Search, Clock, Calendar, CheckCircle, XCircle, Filter, Menu, X, Home, ClipboardList, PlusCircle, Eye } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 import React from 'react';
 
-// Composant Navbar
+// Configuration d'Axios
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Composant Navbar (inchangé)
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -93,7 +102,7 @@ const Navbar = () => {
   );
 };
 
-// Composant Footer
+// Composant Footer (inchangé)
 const Footer = () => {
   return (
     <footer className="bg-gray-800 text-white py-8 fixed bottom-0 left-0 w-screen z-50">
@@ -152,63 +161,119 @@ const Footer = () => {
 };
 
 export default function AccessRequestPage() {
-  const [salle, setSalle] = useState('');
+  const [salleId, setSalleId] = useState('');
   const [date, setDate] = useState('');
   const [heureDebut, setHeureDebut] = useState('');
   const [heureFin, setHeureFin] = useState('');
   const [motif, setMotif] = useState('');
   const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [activeTab, setActiveTab] = useState('newRequest');
+  const [salles, setSalles] = useState([]);
+  const [demandes, setDemandes] = useState([]);
+  const [loadingSalles, setLoadingSalles] = useState(true);
+  const [loadingDemandes, setLoadingDemandes] = useState(true);
 
-  // Données fictives pour les salles disponibles
-  const sallesDisponibles = [
-    'Salle A101',
-    'Salle B202',
-    'Salle C303',
-    'Amphi A',
-    'Laboratoire Chimie',
-  ];
+  // Hardcoded user_id for testing (replace with actual user_id from your database)
+  const hardcodedUserId = 1; // Change this to a valid user_id from your users table
 
-  // Données fictives pour les demandes existantes
-  const demandes = [
-    { id: 1, salle: 'Salle A101', date: '2025-05-18', heureDebut: '09:00', heureFin: '11:00', motif: 'Réunion de projet', statut: 'Approuvée' },
-    { id: 2, salle: 'Amphi A', date: '2025-05-20', heureDebut: '14:00', heureFin: '16:00', motif: 'Conférence', statut: 'En attente' },
-    { id: 3, salle: 'Laboratoire Chimie', date: '2025-05-22', heureDebut: '10:00', heureFin: '12:00', motif: 'Travaux pratiques', statut: 'Refusée' },
-  ];
+  // Fetch salles and demandes on component mount
+  useEffect(() => {
+    const fetchSalles = async () => {
+      try {
+        setLoadingSalles(true);
+        const response = await api.get('/salles');
+        setSalles(response.data);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Erreur lors du chargement des salles.');
+      } finally {
+        setLoadingSalles(false);
+      }
+    };
+
+    const fetchDemandes = async () => {
+      try {
+        setLoadingDemandes(true);
+        const response = await api.get(`/demande-acces/user/${hardcodedUserId}`);
+        setDemandes(response.data.demandes);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Erreur lors du chargement des demandes.');
+      } finally {
+        setLoadingDemandes(false);
+      }
+    };
+
+    fetchSalles();
+    fetchDemandes();
+  }, []);
 
   const getStatusColor = (statut) => {
     switch (statut) {
-      case 'Approuvée': return 'bg-green-100 text-green-800';
-      case 'Refusée': return 'bg-red-100 text-red-800';
+      case 'approuvee': return 'bg-green-100 text-green-800';
+      case 'rejetee': return 'bg-red-100 text-red-800';
       default: return 'bg-yellow-100 text-yellow-800';
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!salle || !date || !heureDebut || !heureFin || !motif) {
-      setMessage({ type: 'error', text: 'Veuillez remplir tous les champs.' });
+    setMessage(null);
+    setError(null);
+
+    if (!salleId || !date || !heureDebut || !heureFin || !motif) {
+      setError('Veuillez remplir tous les champs.');
       return;
     }
 
-    console.log('Nouvelle demande:', { salle, date, heureDebut, heureFin, motif });
-    setMessage({ type: 'success', text: 'Demande soumise avec succès !' });
-    setTimeout(() => setMessage(null), 3000);
-    setSalle('');
-    setDate('');
-    setHeureDebut('');
-    setHeureFin('');
-    setMotif('');
-    setIsModalOpen(false);
+    // Validation côté client
+    const requestDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (requestDate < today) {
+      setError('La date ne peut pas être antérieure à aujourd\'hui.');
+      return;
+    }
+
+    if (heureFin <= heureDebut) {
+      setError('L\'heure de fin doit être après l\'heure de début.');
+      return;
+    }
+
+    try {
+      const response = await api.post('/demande-acces', {
+        user_id: hardcodedUserId,
+        salle_id: parseInt(salleId),
+        date,
+        heure_debut: heureDebut,
+        heure_fin: heureFin,
+        motif,
+      });
+
+      setDemandes([response.data.demande, ...demandes]);
+      setMessage('Demande soumise avec succès !');
+      setSalleId('');
+      setDate('');
+      setHeureDebut('');
+      setHeureFin('');
+      setMotif('');
+      setIsModalOpen(false);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la soumission de la demande.');
+    }
   };
 
   const viewDetails = (request) => {
     setSelectedRequest(request);
     setIsDetailsModalOpen(true);
   };
+
+  if (loadingSalles || loadingDemandes) {
+    return <div className="flex justify-center items-center h-screen">Chargement...</div>;
+  }
 
   return (
     <div className="flex flex-col min-h-screen w-full">
@@ -235,8 +300,13 @@ export default function AccessRequestPage() {
           </div>
 
           {message && (
-            <div className={`mb-6 p-4 ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded-md text-center`}>
-              {message.text}
+            <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-md text-center">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md text-center">
+              {error}
             </div>
           )}
 
@@ -264,78 +334,78 @@ export default function AccessRequestPage() {
             <div className="bg-white shadow-md rounded-lg p-8">
               <h2 className="text-2xl font-semibold mb-6">Nouvelle demande d'accès</h2>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="salle" className="block text-lg font-medium text-gray-700 mb-2">
-                      Salle
-                    </label>
-                    <select
-                      id="salle"
-                      value={salle}
-                      onChange={(e) => setSalle(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      required
-                    >
-                      <option value="">Sélectionnez une salle</option>
-                      {sallesDisponibles.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="date" className="block text-lg font-medium text-gray-700 mb-2">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      id="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="heureDebut" className="block text-lg font-medium text-gray-700 mb-2">
-                      Heure de début
-                    </label>
-                    <input
-                      type="time"
-                      id="heureDebut"
-                      value={heureDebut}
-                      onChange={(e) => setHeureDebut(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="heureFin" className="block text-lg font-medium text-gray-700 mb-2">
-                      Heure de fin
-                    </label>
-                    <input
-                      type="time"
-                      id="heureFin"
-                      value={heureFin}
-                      onChange={(e) => setHeureFin(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      required
-                    />
-                  </div>
+                <div>
+                  <label htmlFor="salle" className="block text-lg font-medium text-gray-700 mb-2">
+                    Salle
+                  </label>
+                  <select
+                    id="salle"
+                    value={salleId}
+                    onChange={(e) => setSalleId(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  >
+                    <option value="">Sélectionnez une salle</option>
+                    {salles.map((salle) => (
+                      <option key={salle.id} value={salle.id}>{salle.nom}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="date" className="block text-lg font-medium text-gray-700 mb-2">
+                    Date
+                  </label>
+                  <input
+                    id="date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="heureDebut" className="block text-lg font-medium text-gray-700 mb-2">
+                    Heure de début
+                  </label>
+                  <input
+                    id="heureDebut"
+                    type="time"
+                    value={heureDebut}
+                    onChange={(e) => setHeureDebut(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="heureFin" className="block text-lg font-medium text-gray-700 mb-2">
+                    Heure de fin
+                  </label>
+                  <input
+                    id="heureFin"
+                    type="time"
+                    value={heureFin}
+                    onChange={(e) => setHeureFin(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
                 </div>
                 <div>
                   <label htmlFor="motif" className="block text-lg font-medium text-gray-700 mb-2">
-                    Motif de la demande
+                    Raison de l'occupation
                   </label>
                   <textarea
                     id="motif"
                     value={motif}
                     onChange={(e) => setMotif(e.target.value)}
-                    rows={4}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Veuillez expliquer le motif de votre demande d'accès..."
+                    rows="4"
                     required
                   />
                 </div>
+                {error && (
+                  <div className="text-red-500 text-sm">{error}</div>
+                )}
                 <div className="flex justify-end">
                   <button
                     type="submit"
@@ -355,7 +425,9 @@ export default function AccessRequestPage() {
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Salle</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Horaires</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Heure début</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Heure fin</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Motif</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Statut</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -363,16 +435,18 @@ export default function AccessRequestPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {demandes.map((demande) => (
                       <tr key={demande.id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <td className="px-6 py-4 whitespace-nowrap font-medium">{demande.salle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap font-medium">
+                          {salles.find((salle) => salle.id === demande.salle_id)?.nom || 'Salle inconnue'}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {new Date(demande.date).toLocaleDateString('fr-FR')}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">{demande.heure_debut}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{demande.heure_fin}</td>
+                        <td className="px-6 py-4">{demande.motif}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {demande.heureDebut} - {demande.heureFin}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${getStatusColor(demande.statut)}`}>
-                            {demande.statut}
+                          <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${getStatusColor(demande.statut_demande)}`}>
+                            {demande.statut_demande === 'approuvee' ? 'Approuvée' : demande.statut_demande === 'rejetee' ? 'Rejetée' : 'En attente'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -387,6 +461,9 @@ export default function AccessRequestPage() {
                     ))}
                   </tbody>
                 </table>
+                {demandes.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">Aucune demande disponible.</div>
+                )}
               </div>
             </div>
           )}
@@ -431,14 +508,14 @@ export default function AccessRequestPage() {
                       </label>
                       <select
                         id="modal-salle"
-                        value={salle}
-                        onChange={(e) => setSalle(e.target.value)}
+                        value={salleId}
+                        onChange={(e) => setSalleId(e.target.value)}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
                         required
                       >
                         <option value="">Sélectionnez une salle</option>
-                        {sallesDisponibles.map((s) => (
-                          <option key={s} value={s}>{s}</option>
+                        {salles.map((salle) => (
+                          <option key={salle.id} value={salle.id}>{salle.nom}</option>
                         ))}
                       </select>
                     </div>
@@ -447,56 +524,56 @@ export default function AccessRequestPage() {
                         Date
                       </label>
                       <input
-                        type="date"
                         id="modal-date"
+                        type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
                         required
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="modal-heureDebut" className="block text-sm font-medium text-gray-700">
-                          Heure de début
-                        </label>
-                        <input
-                          type="time"
-                          id="modal-heureDebut"
-                          value={heureDebut}
-                          onChange={(e) => setHeureDebut(e.target.value)}
-                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="modal-heureFin" className="block text-sm font-medium text-gray-700">
-                          Heure de fin
-                        </label>
-                        <input
-                          type="time"
-                          id="modal-heureFin"
-                          value={heureFin}
-                          onChange={(e) => setHeureFin(e.target.value)}
-                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                          required
-                        />
-                      </div>
+                    <div>
+                      <label htmlFor="modal-heureDebut" className="block text-sm font-medium text-gray-700">
+                        Heure de début
+                      </label>
+                      <input
+                        id="modal-heureDebut"
+                        type="time"
+                        value={heureDebut}
+                        onChange={(e) => setHeureDebut(e.target.value)}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="modal-heureFin" className="block text-sm font-medium text-gray-700">
+                        Heure de fin
+                      </label>
+                      <input
+                        id="modal-heureFin"
+                        type="time"
+                        value={heureFin}
+                        onChange={(e) => setHeureFin(e.target.value)}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                        required
+                      />
                     </div>
                     <div>
                       <label htmlFor="modal-motif" className="block text-sm font-medium text-gray-700">
-                        Motif
+                        Raison de l'occupation
                       </label>
                       <textarea
                         id="modal-motif"
                         value={motif}
                         onChange={(e) => setMotif(e.target.value)}
-                        rows={3}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                        placeholder="Veuillez expliquer le motif de votre demande..."
+                        rows="4"
                         required
                       />
                     </div>
+                    {error && (
+                      <div className="text-red-500 text-sm">{error}</div>
+                    )}
                     <div className="flex justify-end space-x-4 mt-6">
                       <button
                         type="button"
@@ -554,27 +631,32 @@ export default function AccessRequestPage() {
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm font-medium text-gray-500">Salle</p>
-                        <p className="mt-1 text-lg font-medium">{selectedRequest.salle}</p>
+                        <p className="mt-1 text-lg font-medium">
+                          {salles.find((salle) => salle.id === selectedRequest.salle_id)?.nom || 'Salle inconnue'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Date</p>
                         <p className="mt-1 text-lg">{new Date(selectedRequest.date).toLocaleDateString('fr-FR')}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Horaires</p>
-                        <p className="mt-1 text-lg">{selectedRequest.heureDebut} - {selectedRequest.heureFin}</p>
+                        <p className="text-sm font-medium text-gray-500">Heure de début</p>
+                        <p className="mt-1 text-lg">{selectedRequest.heure_debut}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Motif</p>
+                        <p className="text-sm font-medium text-gray-500">Heure de fin</p>
+                        <p className="mt-1 text-lg">{selectedRequest.heure_fin}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Raison</p>
                         <p className="mt-1 text-lg">{selectedRequest.motif}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Statut</p>
-                        <p className={`mt-1 inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedRequest.statut)}`}>
-                          {selectedRequest.statut}
+                        <p className={`mt-1 inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedRequest.statut_demande)}`}>
+                          {selectedRequest.statut_demande === 'approuvee' ? 'Approuvée' : selectedRequest.statut_demande === 'rejetee' ? 'Rejetée' : 'En attente'}
                         </p>
                       </div>
-
                       <div className="mt-6">
                         <button
                           type="button"

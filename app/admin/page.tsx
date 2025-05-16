@@ -164,22 +164,41 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
-    statut: 'Étudiant',
+    statut: 'Professeur',
     email: '',
-    password: '',
+    password: '2ieAdmin2025',
+    numero_inscription: '',
+    uid_badge_rfid: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.nom || !formData.prenom || !formData.email || !formData.password) {
+      setError('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
     try {
-      const response = await api.post('/users/register', { ...formData, isadmin: true });
+      const response = await api.post('/users/register', {
+        ...formData,
+        numero_inscription: formData.numero_inscription || null,
+        uid_badge_rfid: formData.uid_badge_rfid || null,
+        isadmin: true
+      });
       setSuccess(response.data.message);
       setError('');
       onAdd(response.data.user);
-      setFormData({ nom: '', prenom: '', statut: 'Étudiant', email: '', password: '' });
-      setTimeout(onClose, 2000); // Ferme le modal après 2 secondes
+      setFormData({
+        nom: '',
+        prenom: '',
+        statut: 'Professeur',
+        email: '',
+        password: '2ieAdmin2025',
+        numero_inscription: '',
+        uid_badge_rfid: '',
+      });
+      setTimeout(onClose, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de l\'ajout du sous-admin.');
       setSuccess('');
@@ -225,10 +244,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
               onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
             >
-          
               <option value="Professeur">Professeur</option>
-            
-              <option value="Travailleur 2iE"> Travailleur 2iE</option>
+              <option value="Travailleur 2iE">Travailleur 2iE</option>
             </select>
           </div>
           <div className="mb-4">
@@ -239,6 +256,24 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
               required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Numéro d'inscription</label>
+            <input
+              type="text"
+              value={formData.numero_inscription}
+              onChange={(e) => setFormData({ ...formData, numero_inscription: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">UID Badge RFID</label>
+            <input
+              type="text"
+              value={formData.uid_badge_rfid}
+              onChange={(e) => setFormData({ ...formData, uid_badge_rfid: e.target.value })}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
             />
           </div>
           <div className="mb-4">
@@ -320,7 +355,8 @@ export default function AdminDashboard() {
               prenom: user.prenom,
               statut: user.statut,
               salle: salle.nom,
-              numInscription: user.email, // Utiliser l'email comme identifiant
+              numero_inscription: user.numero_inscription || 'Non défini',
+              uid_badge_rfid: user.uid_badge_rfid || 'Non défini',
               heureEntree: new Date(demande.created_at).toLocaleTimeString(),
             };
           })
@@ -334,7 +370,8 @@ export default function AdminDashboard() {
           nom: user.nom,
           prenom: user.prenom,
           statut: user.statut,
-          numInscription: user.email,
+          numero_inscription: user.numero_inscription || 'Non défini',
+          uid_badge_rfid: user.uid_badge_rfid || 'Non défini',
           actif: user.etat,
         })));
 
@@ -349,7 +386,8 @@ export default function AdminDashboard() {
               nom: user.nom,
               prenom: user.prenom,
               statut: user.statut,
-              numInscription: user.email,
+              numero_inscription: user.numero_inscription || 'Non défini',
+              uid_badge_rfid: user.uid_badge_rfid || 'Non défini',
               salle: salle.nom,
             };
           })
@@ -407,7 +445,8 @@ export default function AdminDashboard() {
             prenom: user.prenom,
             statut: user.statut,
             salle: salle.nom,
-            numInscription: user.email,
+            numero_inscription: user.numero_inscription || 'Non défini',
+            uid_badge_rfid: user.uid_badge_rfid || 'Non défini',
             heureEntree: new Date(demande.created_at).toLocaleTimeString(),
           };
         })
@@ -438,7 +477,8 @@ export default function AdminDashboard() {
     const matchesSearch = 
       personne.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       personne.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personne.numInscription.toLowerCase().includes(searchTerm.toLowerCase());
+      (personne.numero_inscription !== 'Non défini' && personne.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (personne.uid_badge_rfid !== 'Non défini' && personne.uid_badge_rfid.toLowerCase().includes(searchTerm.toLowerCase()));
     
     if (filterBy === 'tous') return matchesSearch;
     return matchesSearch && personne.salle === filterBy;
@@ -447,20 +487,24 @@ export default function AdminDashboard() {
   const filteredBadges = badges.filter(badge => 
     badge.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     badge.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    badge.numInscription.toLowerCase().includes(searchTerm.toLowerCase())
+    (badge.numero_inscription !== 'Non défini' && badge.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (badge.uid_badge_rfid !== 'Non défini' && badge.uid_badge_rfid.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredDemandes = demandes.filter(demande => 
     demande.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     demande.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    demande.numInscription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (demande.numero_inscription !== 'Non défini' && demande.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (demande.uid_badge_rfid !== 'Non défini' && demande.uid_badge_rfid.toLowerCase().includes(searchTerm.toLowerCase())) ||
     demande.salle.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredSubAdmins = subAdmins.filter(admin => 
     admin.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
     admin.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    admin.email.toLowerCase().includes(searchTerm.toLowerCase())
+    admin.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (admin.numero_inscription && admin.numero_inscription.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (admin.uid_badge_rfid && admin.uid_badge_rfid.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (loading) return <div className="flex justify-center items-center h-screen">Chargement...</div>;
@@ -637,7 +681,10 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Email
+                        N° Inscription
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        UID RFID
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Salle
@@ -667,7 +714,7 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              personne.statut === 'Travailleur 2IE'
+                              personne.statut === 'Travailleur 2iE'
                                 ? 'bg-blue-100 text-blue-800'
                                 : personne.statut === 'Professeur'
                                 ? 'bg-green-100 text-green-800'
@@ -680,7 +727,10 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {personne.numInscription}
+                          {personne.numero_inscription}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {personne.uid_badge_rfid}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           Salle {personne.salle}
@@ -714,7 +764,10 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Email
+                        N° Inscription
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        UID RFID
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         État
@@ -744,7 +797,7 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              badge.statut === 'Admin 2IE'
+                              badge.statut === 'Travailleur 2iE'
                                 ? 'bg-blue-100 text-blue-800'
                                 : badge.statut === 'Professeur'
                                 ? 'bg-green-100 text-green-800'
@@ -757,7 +810,10 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {badge.numInscription}
+                          {badge.numero_inscription}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {badge.uid_badge_rfid}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -801,7 +857,10 @@ export default function AdminDashboard() {
                         Statut
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Email
+                        N° Inscription
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        UID RFID
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Salle demandée
@@ -831,7 +890,7 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              demande.statut === 'Admin 2IE'
+                              demande.statut === 'Travailleur 2iE'
                                 ? 'bg-blue-100 text-blue-800'
                                 : demande.statut === 'Professeur'
                                 ? 'bg-green-100 text-green-800'
@@ -844,7 +903,10 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {demande.numInscription}
+                          {demande.numero_inscription}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {demande.uid_badge_rfid}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           Salle {demande.salle}
@@ -893,6 +955,12 @@ export default function AdminDashboard() {
                         Email
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        N° Inscription
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        UID RFID
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Rôle Admin
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -920,7 +988,7 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              admin.statut === 'Admin 2IE'
+                              admin.statut === 'Travailleur 2iE'
                                 ? 'bg-blue-100 text-blue-800'
                                 : admin.statut === 'Professeur'
                                 ? 'bg-green-100 text-green-800'
@@ -934,6 +1002,12 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {admin.email}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {admin.numero_inscription || 'Non défini'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {admin.uid_badge_rfid || 'Non défini'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span

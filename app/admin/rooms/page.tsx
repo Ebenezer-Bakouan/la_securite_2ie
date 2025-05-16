@@ -1,13 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import axios from 'axios';
 import { Search, User, Key, Clock, Calendar, CheckCircle, XCircle, Filter, Menu, X, Home, Settings, BarChart2, Trash2 } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 import React from 'react';
 
-// Composant Navbar
+// Configuration d'Axios
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Intercepteur pour ajouter le token JWT à chaque requête
+api.interceptors.request.use(
+  (config) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Composant Navbar (inchangé)
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -93,7 +114,7 @@ const Navbar = () => {
   );
 };
 
-// Composant Footer
+// Composant Footer (inchangé)
 const Footer = () => {
   return (
     <footer className="bg-gray-800 text-white py-8 fixed bottom-0 left-0 w-screen z-50">
@@ -156,36 +177,85 @@ export default function RoomsPage() {
   const [capacity, setCapacity] = useState('');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch rooms on component mount
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/salles');
+        setRooms(response.data);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Erreur lors du chargement des salles.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRooms();
+  }, []);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage(null);
+    setError(null);
+
     if (!roomName || !capacity || !openTime || !closeTime) {
-      setMessage('Tous les champs sont obligatoires.');
+      setError('Tous les champs sont obligatoires.');
       return;
     }
-    console.log('Nouvelle salle:', { roomName, capacity, openTime, closeTime });
-    setMessage('Salle ajoutée avec succès !');
-    setTimeout(() => setMessage(null), 3000);
-    setRoomName('');
-    setCapacity('');
-    setOpenTime('');
-    setCloseTime('');
-    setIsModalOpen(false);
+
+    if (parseInt(capacity) <= 0) {
+      setError('La capacité doit être supérieure à 0.');
+      return;
+    }
+
+    if (closeTime <= openTime) {
+      setError('L\'heure de fermeture doit être après l\'heure d\'ouverture.');
+      return;
+    }
+
+    try {
+      const response = await api.post('/salles', {
+        nom: roomName,
+        capacite: parseInt(capacity),
+        nombre_presents: 0,
+        heure_ouverture: openTime,
+        heure_fermeture: closeTime,
+      });
+      setRooms([...rooms, response.data.salle]);
+      setMessage('Salle ajoutée avec succès !');
+      setRoomName('');
+      setCapacity('');
+      setOpenTime('');
+      setCloseTime('');
+      setIsModalOpen(false);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de l\'ajout de la salle.');
+    }
   };
 
-  const handleDelete = (roomName: string) => {
-    console.log(`Supprimer la salle ${roomName}`);
-    // Logique de suppression (simulation)
+  const handleDelete = async (id) => {
+    setMessage(null);
+    setError(null);
+    try {
+      await api.delete(`/salles/${id}`);
+      setRooms(rooms.filter((room) => room.id !== id));
+      setMessage('Salle supprimée avec succès !');
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la suppression de la salle.');
+    }
   };
 
-  // Données fictives pour les salles existantes
-  const existingRooms = [
-    { name: 'Salle A101', capacity: 50, present: 20, open: '08:00', close: '18:00' },
-    { name: 'Salle B202', capacity: 30, present: 15, open: '09:00', close: '17:00' },
-    { name: 'Salle C303', capacity: 40, present: 25, open: '07:30', close: '19:00' },
-  ];
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Chargement...</div>;
+  }
 
   return (
     <div className="flex flex-col min-h-screen w-full">
@@ -215,6 +285,11 @@ export default function RoomsPage() {
               {message}
             </div>
           )}
+          {error && (
+            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md text-center">
+              {error}
+            </div>
+          )}
           <div className="bg-white shadow-md rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">Salles existantes</h2>
             <div className="overflow-x-auto">
@@ -229,15 +304,17 @@ export default function RoomsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {existingRooms.map((room) => (
-                    <tr key={room.name} className="hover:bg-gray-50 transition-colors duration-200">
-                      <td className="px-6 py-4 whitespace-nowrap">{room.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{room.capacity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{room.present}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{room.open} - {room.close}</td>
+                  {rooms.map((room) => (
+                    <tr key={room.id} className="hover:bg-gray-50 transition-colors duration-200">
+                      <td className="px-6 py-4 whitespace-nowrap">{room.nom}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{room.capacite}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{room.nombre_presents}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {room.heure_ouverture} - {room.heure_fermeture}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
-                          onClick={() => handleDelete(room.name)}
+                          onClick={() => handleDelete(room.id)}
                           className="text-red-600 hover:text-red-800 transition duration-200"
                         >
                           <Trash2 className="h-5 w-5" />
@@ -247,6 +324,9 @@ export default function RoomsPage() {
                   ))}
                 </tbody>
               </table>
+              {rooms.length === 0 && (
+                <div className="text-center py-8 text-gray-500">Aucune salle disponible.</div>
+              )}
             </div>
           </div>
         </div>
@@ -256,7 +336,7 @@ export default function RoomsPage() {
       {/* Modale pour ajouter une salle */}
       <Transition appear show={isModalOpen} as={React.Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
-            <Transition.Child
+          <Transition.Child
             as={React.Fragment}
             enter="ease-out duration-300"
             enterFrom="opacity-0"
@@ -264,9 +344,9 @@ export default function RoomsPage() {
             leave="ease-in duration-200"
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
-            >
+          >
             <div className="fixed inset-0 bg-black bg-opacity-25" />
-            </Transition.Child>
+          </Transition.Child>
 
           <div className="fixed inset-0 overflow-y-auto">
             <div className="flex min-h-full items-center justify-center p-6 text-center">
@@ -310,6 +390,7 @@ export default function RoomsPage() {
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
                         placeholder="Ex. 50"
                         required
+                        min="1"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -340,6 +421,9 @@ export default function RoomsPage() {
                         />
                       </div>
                     </div>
+                    {error && (
+                      <div className="text-red-500 text-sm">{error}</div>
+                    )}
                     <div className="flex justify-end space-x-4">
                       <button
                         type="button"

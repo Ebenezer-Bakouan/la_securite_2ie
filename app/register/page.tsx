@@ -10,13 +10,15 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [statut, setStatut] = useState('Étudiant');
   const [password, setPassword] = useState('');
+  const [numeroInscription, setNumeroInscription] = useState('');
+  const [uidBadgeRfid, setUidBadgeRfid] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nom || !prenom || !email || !password) {
-      setError('Veuillez remplir tous les champs.');
+      setError('Veuillez remplir tous les champs obligatoires.');
       return;
     }
 
@@ -30,6 +32,8 @@ export default function RegisterPage() {
         email,
         statut,
         password,
+        numero_inscription: numeroInscription || null,
+        uid_badge_rfid: uidBadgeRfid || null,
         isadmin: false
       });
 
@@ -49,14 +53,13 @@ export default function RegisterPage() {
 
   return (
     <main className="flex items-center justify-center min-h-screen bg-gray-50 p-6">
-      {/* Augmentation significative de la largeur à max-w-6xl (72rem) */}
       <section className="bg-white shadow-xl rounded-xl py-10 px-8 w-full max-w-6xl mx-auto">
         <header className="text-center mb-10">
           <div className="flex justify-center mb-8 max-w-full mx-auto">
             <Image
               src="/logo2ie.png"
               alt="Université 2iE Logo"
-              width={200}  // Logo plus grand
+              width={200}
               height={200}
               className="object-contain"
             />
@@ -78,7 +81,6 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* Division du formulaire en deux colonnes sur les écrans plus larges */}
         <form onSubmit={handleSubmit} className="max-w-full mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
@@ -142,6 +144,34 @@ export default function RegisterPage() {
                 <option value="Stagiaire">Stagiaire</option>
                 <option value="Travailleur 2iE">Travailleur 2iE</option>
               </select>
+            </div>
+
+            <div className="space-y-4">
+              <label htmlFor="numeroInscription" className="block text-xl font-medium text-gray-700">
+                Numéro d'inscription
+              </label>
+              <input
+                type="text"
+                id="numeroInscription"
+                value={numeroInscription}
+                onChange={(e) => setNumeroInscription(e.target.value)}
+                className="block w-full p-4 text-lg rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                placeholder="123456789"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label htmlFor="uidBadgeRfid" className="block text-xl font-medium text-gray-700">
+                UID Badge RFID
+              </label>
+              <input
+                type="text"
+                id="uidBadgeRfid"
+                value={uidBadgeRfid}
+                onChange={(e) => setUidBadgeRfid(e.target.value)}
+                className="block w-full p-4 text-lg rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                placeholder="A1B2C3D4"
+              />
             </div>
 
             <div className="space-y-4 md:col-span-2">
