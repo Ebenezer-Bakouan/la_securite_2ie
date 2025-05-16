@@ -28,6 +28,16 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Ajoute une interface pour les salles
+interface Room {
+  id: number;
+  nom: string;
+  capacite: number;
+  nombre_presents: number;
+  heure_ouverture: string;
+  heure_fermeture: string;
+}
+
 // Composant Navbar (inchangé)
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -173,15 +183,15 @@ const Footer = () => {
 };
 
 export default function RoomsPage() {
-  const [roomName, setRoomName] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [openTime, setOpenTime] = useState('');
-  const [closeTime, setCloseTime] = useState('');
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [roomName, setRoomName] = useState<string>('');
+  const [capacity, setCapacity] = useState<string>('');
+  const [openTime, setOpenTime] = useState<string>('');
+  const [closeTime, setCloseTime] = useState<string>('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Fetch rooms on component mount
   useEffect(() => {
@@ -191,7 +201,11 @@ export default function RoomsPage() {
         const response = await api.get('/salles');
         setRooms(response.data);
       } catch (err) {
-        setError(err.response?.data?.error || 'Erreur lors du chargement des salles.');
+        if (axios.isAxiosError(err)) {
+          setError(err.response?.data?.error || 'Erreur lors du chargement des salles.');
+        } else {
+          setError('Erreur lors du chargement des salles.');
+        }
       } finally {
         setLoading(false);
       }
@@ -199,7 +213,8 @@ export default function RoomsPage() {
     fetchRooms();
   }, []);
 
-  const handleSubmit = async (e) => {
+  // Ajoute le type pour l'événement du formulaire
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage(null);
     setError(null);
@@ -235,12 +250,13 @@ export default function RoomsPage() {
       setCloseTime('');
       setIsModalOpen(false);
       setTimeout(() => setMessage(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur lors de l\'ajout de la salle.');
     }
   };
 
-  const handleDelete = async (id) => {
+  // Ajoute le type pour l'id
+  const handleDelete = async (id: number) => {
     setMessage(null);
     setError(null);
     try {
@@ -248,7 +264,7 @@ export default function RoomsPage() {
       setRooms(rooms.filter((room) => room.id !== id));
       setMessage('Salle supprimée avec succès !');
       setTimeout(() => setMessage(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur lors de la suppression de la salle.');
     }
   };
