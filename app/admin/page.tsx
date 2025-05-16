@@ -411,7 +411,7 @@ export default function AdminDashboard() {
         // Récupérer les personnes présentes (demandes approuvées)
         const demandesApprouvees = await api.get('/demande-acces?statut=approuvee');
         const personnesData = await Promise.all(
-          demandesApprouvees.data.demandes.map(async (demande: { user_id: any; salle_id: any; id: any; created_at: string | number | Date; }) => {
+          demandesApprouvees.data.demandes.map(async (demande: { user_id: unknown; salle_id: unknown; id: unknown; created_at: string | number | Date; }) => {
             const user = (await api.get(`/users/${demande.user_id}`)).data;
             const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
             return {
@@ -430,7 +430,7 @@ export default function AdminDashboard() {
 
         // Récupérer les badges (tous les utilisateurs)
         const badgesResponse = await api.get('/users');
-        setBadges(badgesResponse.data.map((user: { id: any; nom: any; prenom: any; statut: any; numero_inscription: any; uid_badge_rfid: any; etat: any; }) => ({
+        setBadges(badgesResponse.data.map((user: { id: unknown; nom: unknown; prenom: unknown; statut: unknown; numero_inscription: unknown; uid_badge_rfid: unknown; etat: unknown; }) => ({
           id: user.id,
           nom: user.nom,
           prenom: user.prenom,
@@ -443,7 +443,7 @@ export default function AdminDashboard() {
         // Récupérer les demandes d'accès
         const demandesResponse = await api.get('/demande-acces');
         const demandesData = await Promise.all(
-          demandesResponse.data.demandes.map(async (demande: { user_id: any; salle_id: any; id: any; }) => {
+          demandesResponse.data.demandes.map(async (demande: { user_id: unknown; salle_id: unknown; id: unknown; }) => {
             const user = (await api.get(`/users/${demande.user_id}`)).data;
             const salle = (await api.get(`/salles/${demande.salle_id}`)).data;
             return {
