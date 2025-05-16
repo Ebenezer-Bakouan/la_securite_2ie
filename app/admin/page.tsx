@@ -158,10 +158,26 @@ const Footer = () => {
     </footer>
   );
 };
+type AddSubAdminModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (formData: { nom: string; prenom: string; email: string; password: string }) => void;
+};
 
 // Composant pour le formulaire d'ajout de sous-admin
-const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
-  const [formData, setFormData] = useState({
+interface FormData {
+  nom: string;
+  prenom: string;
+  statut: 'Professeur' | 'Travailleur 2iE';
+  email: string;
+  password: string;
+  numero_inscription: string;
+  uid_badge_rfid: string;
+}
+
+
+const AddSubAdminModal: React.FC<AddSubAdminModalProps> = ({ isOpen, onClose, onAdd }) => {
+  const [formData, setFormData] = useState<FormData>({
     nom: '',
     prenom: '',
     statut: 'Professeur',
@@ -170,10 +186,10 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
     numero_inscription: '',
     uid_badge_rfid: '',
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!formData.nom || !formData.prenom || !formData.email || !formData.password) {
       setError('Veuillez remplir tous les champs obligatoires.');
@@ -199,7 +215,7 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
         uid_badge_rfid: '',
       });
       setTimeout(onClose, 2000);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur lors de l\'ajout du sous-admin.');
       setSuccess('');
     }
@@ -222,7 +238,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="text"
               value={formData.nom}
-              onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, nom: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
               required
             />
@@ -232,7 +249,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="text"
               value={formData.prenom}
-              onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, prenom: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
               required
             />
@@ -241,7 +259,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <label className="block text-sm font-medium text-gray-700">Statut</label>
             <select
               value={formData.statut}
-              onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                setFormData({ ...formData, statut: e.target.value as FormData['statut'] })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
             >
               <option value="Professeur">Professeur</option>
@@ -253,7 +272,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, email: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
               required
             />
@@ -263,7 +283,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="text"
               value={formData.numero_inscription}
-              onChange={(e) => setFormData({ ...formData, numero_inscription: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, numero_inscription: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -272,7 +293,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="text"
               value={formData.uid_badge_rfid}
-              onChange={(e) => setFormData({ ...formData, uid_badge_rfid: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, uid_badge_rfid: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -281,7 +303,8 @@ const AddSubAdminModal = ({ isOpen, onClose, onAdd }) => {
             <input
               type="password"
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                setFormData({ ...formData, password: e.target.value })}
               className="w-full mt-1 p-2 border border-gray-300 rounded-md"
               required
             />
